@@ -9,6 +9,9 @@
 // This class implements RISC-V specific bits of TargetFrameLowering class.
 //
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
 
 #ifndef LLVM_LIB_TARGET_RISCV_RISCVFRAMELOWERING_H
 #define LLVM_LIB_TARGET_RISCV_RISCVFRAMELOWERING_H
@@ -35,6 +38,12 @@ public:
 
   StackOffset getFrameIndexReference(const MachineFunction &MF, int FI,
                                      Register &FrameReg) const override;
+
+  bool assignCalleeSavedSpillSlots(MachineFunction &MF,
+                              const TargetRegisterInfo *TRI,
+                                   std::vector<CalleeSavedInfo> &CSI,
+                                   unsigned &MinCSFrameIndex,
+                                   unsigned &MaxCSFrameIndex) const override;
 
   void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs,
                             RegScavenger *RS) const override;

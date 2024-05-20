@@ -5,6 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
 
 #include "MCTargetDesc/RISCVAsmBackend.h"
 #include "MCTargetDesc/RISCVBaseInfo.h"
@@ -1210,6 +1213,11 @@ static MCRegister convertFPR64ToFPR32(MCRegister Reg) {
   return Reg - RISCV::F0_D + RISCV::F0_F;
 }
 
+static MCRegister convertToRegisterPair(MCRegister Reg) {
+  //assert(Reg >= RISCV::X0 && Reg <= RISCV::X31 && "Invalid register");
+  return (Reg - RISCV::X0) / 2 + RISCV::X0_PD;
+}
+
 static MCRegister convertVRToVRMx(const MCRegisterInfo &RI, MCRegister Reg,
                                   unsigned Kind) {
   unsigned RegClassID;
@@ -1237,6 +1245,11 @@ unsigned RISCVAsmParser::validateTargetOperandClass(MCParsedAsmOperand &AsmOp,
   bool IsRegFPR64C =
       RISCVMCRegisterClasses[RISCV::FPR64CRegClassID].contains(Reg);
   bool IsRegVR = RISCVMCRegisterClasses[RISCV::VRRegClassID].contains(Reg);
+  bool IsRegGPR = RISCVMCRegisterClasses[RISCV::GPRRegClassID].contains(Reg);
+  bool IsRegGPRPNoX0 =
+      RISCVMCRegisterClasses[RISCV::GPRNoX0RegClassID].contains(Reg);
+  bool IsRegGPRC =
+      RISCVMCRegisterClasses[RISCV::GPRCRegClassID].contains(Reg);
 
   // As the parser couldn't differentiate an FPR32 from an FPR64, coerce the
   // register from FPR64 to FPR32 or FPR64C to FPR32C if necessary.
@@ -1251,6 +1264,19 @@ unsigned RISCVAsmParser::validateTargetOperandClass(MCParsedAsmOperand &AsmOp,
     Op.Reg.RegNum = convertFPR64ToFPR16(Reg);
     return Match_Success;
   }
+  
+  // Support for register pairs
+  if (IsRegGPR && Kind == MCK_GPRP && Reg >= RISCV::X0 && !((Reg - RISCV::X0) % 2))
+    return Match_Success;
+
+  if (IsRegGPRPNoX0 && Kind == MCK_GPRPNoX0 && Reg >= RISCV::X2 &&
+      !((Reg - RISCV::X0) % 2))
+    return Match_Success;
+
+  if (IsRegGPRC && Kind == MCK_GPRCP && Reg >= RISCV::X8 &&
+      Reg <= RISCV::X14 && !((Reg - RISCV::X8) % 2))
+    return Match_Success;
+
   // As the parser couldn't differentiate an VRM2/VRM4/VRM8 from an VR, coerce
   // the register from VR to VRM2/VRM4/VRM8 if necessary.
   if (IsRegVR && (Kind == MCK_VRM2 || Kind == MCK_VRM4 || Kind == MCK_VRM8)) {

@@ -9,6 +9,9 @@
 // This file defines an instruction selector for the RISC-V target.
 //
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
 
 #include "RISCVISelDAGToDAG.h"
 #include "MCTargetDesc/RISCVBaseInfo.h"
@@ -2036,6 +2039,100 @@ void RISCVDAGToDAGISel::Select(SDNode *Node) {
 
     SDValue Extract = CurDAG->getTargetExtractSubreg(SubRegIdx, DL, VT, V);
     ReplaceNode(Node, Extract.getNode());
+    return;
+  }
+  case RISCVISD::LD64: {
+
+    assert(Subtarget->hasStdExtZilsd() &&
+           "LD64 is only used with the ZILSD extension");
+
+    SDLoc dl(Node);
+    SDValue Chain = Node->getOperand(0);
+    SDValue Base = Node->getOperand(1);
+    SDValue Offset = CurDAG->getTargetConstant(0, dl, MVT::i32);
+
+    SelectAddrRegImm(Base, Base, Offset);
+
+    // Generate ZILSD_LD MI directly. ISel pass will automatically assign
+    // GPR32P register class for the MVT::i64 data type based on the
+    // info in the td file.
+    SDValue Ops[] = {Base, Offset, Chain};
+    SDNode *Load =
+        CurDAG->getMachineNode(RISCV::ZILSD_LD, dl, MVT::i64, MVT::Other, Ops);
+    SDValue HiRegIdx =
+        CurDAG->getTargetConstant(RISCV::sub_32_hi, dl, MVT::i32);
+    SDValue LoRegIdx = CurDAG->getTargetConstant(RISCV::sub_32, dl, MVT::i32);
+
+    SDNode *HiVal = CurDAG->getMachineNode(RISCV::EXTRACT_SUBREG, dl, MVT::i32,
+                                           SDValue(Load, 0), HiRegIdx);
+    SDNode *LoVal = CurDAG->getMachineNode(RISCV::EXTRACT_SUBREG, dl, MVT::i32,
+                                           SDValue(Load, 0), LoRegIdx);
+    ReplaceUses(SDValue(Node, 0), SDValue(LoVal, 0));
+    ReplaceUses(SDValue(Node, 1), SDValue(HiVal, 0));
+    ReplaceUses(SDValue(Node, 2), SDValue(Load, 1));
+    CurDAG->RemoveDeadNode(Node);
+    return;
+  }
+  case RISCVISD::ST64: {
+
+    assert(Subtarget->hasStdExtZilsd() &&
+           "ST64 is only used with the ZILSD extension");
+
+    SDLoc dl(Node);
+
+    SDValue Chain = Node->getOperand(0);
+    SDValue Base = Node->getOperand(3);
+    SDValue Offset = CurDAG->getTargetConstant(0, dl, MVT::i32);
+
+    SelectAddrRegImm(Base, Base, Offset);
+
+     // X0_PD has a different meaning. It is not represented by the pair (X0,X1),
+     // instead, like X0, it is hardwired to 0.
+     if (ConstantSDNode *ConstantLoVal =
+            dyn_cast<ConstantSDNode>(Node->getOperand(2)))
+      if (ConstantSDNode *ConstantHiVal =
+              dyn_cast<ConstantSDNode>(Node->getOperand(1)))
+        if (ConstantLoVal->getZExtValue() == 0 &&
+            ConstantHiVal->getZExtValue() == 0) {
+          ReplaceNode(Node, CurDAG->getMachineNode(
+                          RISCV::PseudoZILSD_SD, dl, MVT::Other,
+                          {CurDAG->getRegister(RISCV::X0_PD, MVT::v2i32),
+                           CurDAG->getRegister(RISCV::X0_PD, MVT::v2i32),
+                           Base, Offset, Chain}));
+          return;
+        }
+    
+    // ZILSD_SD should be preceeded by INSERT_SUBREG nodes which should
+    // construct the 64bit data type. But IMPLICIT_DEF used in the
+    // subreg node will fail to assign a GPRP register class. So fall
+    // back to a pseudo instruction and emit the MI using a CustomInserter.
+    ReplaceNode(
+         Node, CurDAG->getMachineNode(RISCV::PseudoZILSD_SD, dl, MVT::Other,
+                                      {Node->getOperand(1), Node->getOperand(2),
+                                       Base, Offset, Chain}));
+    return;
+  }
+  case RISCVISD::BUILD_VECTOR: {
+    EVT EltVT = VT.getVectorElementType();
+    unsigned NumElts = VT.getVectorNumElements();
+
+    assert(Subtarget->hasStdExtZilsd() &&
+           "build_vector v2i32 should not get here without the ZILSD extension");
+
+    assert((EltVT == MVT::i32 && NumElts == 2) &&
+           "unexpected type for BUILD_VECTOR");
+
+    SDLoc dl(Node->getOperand(0));
+    SDValue RegClass =
+        CurDAG->getTargetConstant(RISCV::GPRPRegClassID, dl, MVT::i32);
+    SDValue SubRegLo = CurDAG->getTargetConstant(RISCV::sub_32, dl, MVT::i32);
+    SDValue SubRegHi = CurDAG->getTargetConstant(RISCV::sub_32_hi, dl, MVT::i32);
+    const SDValue Ops[] = {RegClass, Node->getOperand(0), SubRegLo,
+                           Node->getOperand(1), SubRegHi};
+    SDNode *RegPair =
+        CurDAG->getMachineNode(TargetOpcode::REG_SEQUENCE, dl, VT, Ops);
+
+    ReplaceNode(Node, RegPair);
     return;
   }
   case RISCVISD::VMV_S_X_VL:

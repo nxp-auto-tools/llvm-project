@@ -9,6 +9,16 @@
 //===----------------------------------------------------------------------===//
 // RISC-V subtarget features and instruction predicates.
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
+
+def FeatureStdExtZilsd
+    : SubtargetFeature<"zilsd", "HasStdExtZilsd", "true",
+                       "'zilsd' (Zilsd Extension Test)">;
+def HasStdExtZilsd : Predicate<"Subtarget->hasStdExtZilsd()">,
+                           AssemblerPredicate<(all_of FeatureStdExtZilsd),
+                           "'Zilsd' (Zilsd Extension Test)">;
 
 def FeatureStdExtZicsr
     : SubtargetFeature<"zicsr", "HasStdExtZicsr", "true",

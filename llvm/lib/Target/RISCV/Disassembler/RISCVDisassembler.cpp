@@ -9,6 +9,9 @@
 // This file implements the RISCVDisassembler class.
 //
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
 
 #include "MCTargetDesc/RISCVBaseInfo.h"
 #include "MCTargetDesc/RISCVMCTargetDesc.h"
@@ -70,6 +73,19 @@ static DecodeStatus DecodeGPRRegisterClass(MCInst &Inst, uint32_t RegNo,
     return MCDisassembler::Fail;
 
   MCRegister Reg = RISCV::X0 + RegNo;
+  Inst.addOperand(MCOperand::createReg(Reg));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus DecodeGPRPRegisterClass(MCInst &Inst, uint32_t RegNo,
+                                           uint64_t Address,
+                                           const MCDisassembler *Decoder) {
+  bool IsRVE = Decoder->getSubtargetInfo().hasFeature(RISCV::FeatureRVE);
+
+  if (RegNo >= 32 || (IsRVE && RegNo >= 16))
+    return MCDisassembler::Fail;
+
+  MCRegister Reg = RISCV::X0_PD + RegNo/2;
   Inst.addOperand(MCOperand::createReg(Reg));
   return MCDisassembler::Success;
 }
@@ -139,6 +155,16 @@ static DecodeStatus DecodeGPRNoX0RegisterClass(MCInst &Inst, uint32_t RegNo,
   return DecodeGPRRegisterClass(Inst, RegNo, Address, Decoder);
 }
 
+static DecodeStatus DecodeGPRPNoX0RegisterClass(MCInst &Inst, uint32_t RegNo,
+                                               uint64_t Address,
+                                               const MCDisassembler *Decoder) {
+  if (RegNo == 0) {
+    return MCDisassembler::Fail;
+  }
+
+  return DecodeGPRPRegisterClass(Inst, RegNo, Address, Decoder);
+}
+
 static DecodeStatus
 DecodeGPRNoX0X2RegisterClass(MCInst &Inst, uint64_t RegNo, uint32_t Address,
                              const MCDisassembler *Decoder) {
@@ -156,6 +182,17 @@ static DecodeStatus DecodeGPRCRegisterClass(MCInst &Inst, uint32_t RegNo,
     return MCDisassembler::Fail;
 
   MCRegister Reg = RISCV::X8 + RegNo;
+  Inst.addOperand(MCOperand::createReg(Reg));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus DecodeGPRCPRegisterClass(MCInst &Inst, uint32_t RegNo,
+                                            uint64_t Address,
+                                            const MCDisassembler *Decoder) {
+  if (RegNo >= 8)
+    return MCDisassembler::Fail;
+
+  MCRegister Reg = RISCV::X8_PD + RegNo/2;
   Inst.addOperand(MCOperand::createReg(Reg));
   return MCDisassembler::Success;
 }
@@ -525,6 +562,8 @@ DecodeStatus RISCVDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
                       !STI.hasFeature(RISCV::Feature64Bit),
                   DecoderTableRV32Zdinx32,
                   "RV32Zdinx table (Double in Integer and rv32)");
+    TRY_TO_DECODE_FEATURE(RISCV::FeatureStdExtZilsd, DecoderTableZilsd32,
+                          "Zilsd table (Integer load store pairs)");
     TRY_TO_DECODE_FEATURE(RISCV::FeatureStdExtZfinx, DecoderTableRVZfinx32,
                           "RVZfinx table (Float in Integer)");
     TRY_TO_DECODE_FEATURE(RISCV::FeatureVendorXVentanaCondOps,
@@ -585,6 +624,9 @@ DecodeStatus RISCVDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
   TRY_TO_DECODE_FEATURE(
       RISCV::FeatureStdExtZcmp, DecoderTableRVZcmp16,
       "Zcmp table (16-bit Push/Pop & Double Move Instructions)");
+  TRY_TO_DECODE_AND_ADD_SP(STI.hasFeature(RISCV::FeatureStdExtZilsd),
+                           DecoderTableZilsd16,
+                           "Zilsd table (16-bit Table Jump Instructions)");
   TRY_TO_DECODE_AND_ADD_SP(true, DecoderTable16,
                            "RISCV_C table (16-bit Instruction)");
 

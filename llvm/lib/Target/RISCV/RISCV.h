@@ -10,6 +10,9 @@
 // RISC-V back-end.
 //
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
 
 #ifndef LLVM_LIB_TARGET_RISCV_RISCV_H
 #define LLVM_LIB_TARGET_RISCV_RISCV_H
@@ -75,6 +78,9 @@ void initializeRISCVMoveMergePass(PassRegistry &);
 
 FunctionPass *createRISCVPushPopOptimizationPass();
 void initializeRISCVPushPopOptPass(PassRegistry &);
+
+FunctionPass *createRISCVMIPeepholePass();
+void initializeRISCVMIPeepholePass(PassRegistry &);
 
 InstructionSelector *createRISCVInstructionSelector(const RISCVTargetMachine &,
                                                     RISCVSubtarget &,

@@ -5,6 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
 
 #include "RISCV.h"
 #include "../Clang.h"
@@ -166,6 +169,13 @@ void riscv::getRISCVTargetFeatures(const Driver &D, const llvm::Triple &Triple,
     Features.push_back("+save-restore");
   else
     Features.push_back("-save-restore");
+
+  // Zilsd extension requies information about the alignment. By default, we consider that
+  // all memory accesses need to be aligned.
+  if (Args.hasFlag(options::OPT_munaligned_access, options::OPT_mno_unaligned_access, false))
+    Features.push_back("+unaligned-scalar-mem");
+  else
+    Features.push_back("-unaligned-scalar-mem");
 
   // Now add any that the user explicitly requested on the command line,
   // which may override the defaults.

@@ -999,6 +999,8 @@ RISC-V Support
   incorrect DWARF related to ULEB128 and linker compatibility before
   ``R_RISCV_SET_ULEB128`` becomes more widely supported.
   (`D157663 <https://reviews.llvm.org/D157663>`_).
+- Unaligned memory accesses can be toggled by ``-m[no-]unaligned-access``.
+
 
 CUDA/HIP Language Changes
 ^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -335,6 +335,7 @@ Changes to the RISC-V Backend
 * Added assembler/disassembler support for the experimental Zacas (atomic
   compare-and-swap) extension.
 * Zvfh extension version was upgraded to 1.0 and is no longer experimental.
+* Added support for Zilsd extension (generate ZILSD instructions for pairs of 32bit integer load/store)
 
 Changes to the WebAssembly Backend
 ----------------------------------

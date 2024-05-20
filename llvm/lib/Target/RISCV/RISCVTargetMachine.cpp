@@ -9,6 +9,9 @@
 // Implements the info about RISC-V target spec.
 //
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
 
 #include "RISCVTargetMachine.h"
 #include "MCTargetDesc/RISCVBaseInfo.h"
@@ -389,6 +392,7 @@ void RISCVPassConfig::addPreRegAlloc() {
     addPass(createRISCVMergeBaseOffsetOptPass());
   addPass(createRISCVInsertVSETVLIPass());
   addPass(createRISCVInsertReadWriteCSRPass());
+  addPass(createRISCVMIPeepholePass());
 }
 
 void RISCVPassConfig::addOptimizedRegAlloc() {

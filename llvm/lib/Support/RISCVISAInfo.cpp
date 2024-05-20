@@ -5,6 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
+
 
 #include "llvm/Support/RISCVISAInfo.h"
 #include "llvm/ADT/STLExtras.h"
@@ -118,6 +122,7 @@ static const RISCVSupportedExtension SupportedExtensions[] = {
     {"zifencei", RISCVExtensionVersion{2, 0}},
     {"zihintpause", RISCVExtensionVersion{2, 0}},
     {"zihpm", RISCVExtensionVersion{1, 0}},
+    {"zilsd", RISCVExtensionVersion{1, 0}},
 
     {"zk", RISCVExtensionVersion{1, 0}},
     {"zkn", RISCVExtensionVersion{1, 0}},

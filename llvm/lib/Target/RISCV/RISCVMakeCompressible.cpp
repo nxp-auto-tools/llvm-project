@@ -5,6 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// 
+/*
+ * Copyright 2024 NXP
+ */
 //
 // This pass searches for instructions that are prevented from being compressed
 // by one of the following:
@@ -110,6 +114,8 @@ static unsigned log2LdstWidth(unsigned Opcode) {
   case RISCV::SD:
   case RISCV::FLD:
   case RISCV::FSD:
+  case RISCV::ZILSD_LD:
+  case RISCV::ZILSD_SD:
     return 3;
   }
 }
@@ -139,7 +145,8 @@ static int64_t getBaseAdjustForCompression(int64_t Offset, unsigned Opcode) {
 static bool isCompressedReg(Register Reg) {
   return RISCV::GPRCRegClass.contains(Reg) ||
          RISCV::FPR32CRegClass.contains(Reg) ||
-         RISCV::FPR64CRegClass.contains(Reg);
+         RISCV::FPR64CRegClass.contains(Reg) ||
+         RISCV::GPRCPRegClass.contains(Reg);
 }
 
 // Return true if MI is a load for which there exists a compressed version.
@@ -148,7 +155,7 @@ static bool isCompressibleLoad(const MachineInstr &MI) {
   const unsigned Opcode = MI.getOpcode();
 
   return Opcode == RISCV::LW || (!STI.is64Bit() && Opcode == RISCV::FLW) ||
-         Opcode == RISCV::LD || Opcode == RISCV::FLD;
+         Opcode == RISCV::LD || Opcode == RISCV::FLD || Opcode == RISCV::ZILSD_LD;
 }
 
 // Return true if MI is a store for which there exists a compressed version.
@@ -157,7 +164,7 @@ static bool isCompressibleStore(const MachineInstr &MI) {
   const unsigned Opcode = MI.getOpcode();
 
   return Opcode == RISCV::SW || (!STI.is64Bit() && Opcode == RISCV::FSW) ||
-         Opcode == RISCV::SD || Opcode == RISCV::FSD;
+         Opcode == RISCV::SD || Opcode == RISCV::FSD || Opcode == RISCV::ZILSD_SD;
 }
 
 // Find a single register and/or large offset which, if compressible, would
@@ -266,6 +273,8 @@ static Register analyzeCompressibleUses(MachineInstr &FirstMI,
     RCToScavenge = &RISCV::FPR32CRegClass;
   else if (RISCV::FPR64RegClass.contains(RegImm.Reg))
     RCToScavenge = &RISCV::FPR64CRegClass;
+  else if (RISCV::GPRPRegClass.contains(RegImm.Reg))
+    RCToScavenge = &RISCV::GPRCPRegClass;
   else
     return RISCV::NoRegister;
 

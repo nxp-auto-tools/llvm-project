@@ -10,6 +10,9 @@
 // selection DAG.
 //
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
 
 #include "RISCVISelLowering.h"
 #include "MCTargetDesc/RISCVMatInt.h"
@@ -1202,6 +1205,16 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setTargetDAGCombine({ISD::LOAD, ISD::STORE});
   if (Subtarget.useRVVForFixedLengthVectors())
     setTargetDAGCombine(ISD::BITCAST);
+
+  if (Subtarget.hasStdExtZilsd() && Subtarget.isRV32()) {
+    setOperationAction(ISD::LOAD, MVT::i64, Custom);
+    setOperationAction(ISD::STORE, MVT::i64, Custom);
+    setOperationAction(ISD::LOAD, MVT::v2i32, Custom);
+    setOperationAction(ISD::STORE, MVT::v2i32, Custom);
+    setOperationAction(ISD::EXTRACT_VECTOR_ELT, MVT::v2i32, Legal);
+    setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v2i32, Legal);
+    setOperationAction(ISD::BUILD_VECTOR, MVT::v2i32, Expand);
+  }
 
   setLibcallName(RTLIB::FPEXT_F16_F32, "__extendhfsf2");
   setLibcallName(RTLIB::FPROUND_F32_F16, "__truncsfhf2");
@@ -5321,6 +5334,32 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
       return lowerFixedLengthVectorLoadToRVV(Op, DAG);
     return Op;
   case ISD::STORE:
+    if (Subtarget.hasStdExtZilsd() &&
+        (Op.getOperand(1).getValueType() == MVT::i64 ||
+         Op.getOperand(1).getValueType() == MVT::v2i32)) {
+
+        SDLoc dl(Op);
+
+        // There is no variant of truncating store available in the ZILSD extension. 
+        if (cast<StoreSDNode>(Op)->isTruncatingStore())
+            return SDValue();
+        
+        // We can't emit ZILSD_SD if the unaligned memory is not allowed and the variable
+        // is not aligned to a value bigger than 8.
+        if (!Subtarget.enableUnalignedScalarMem() && cast<StoreSDNode>(Op)->getAlign() < 8)
+          return SDValue();
+
+        SDValue HiVal =
+            DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i32, Op.getOperand(1),
+                        DAG.getConstant(1, dl, MVT::i32));
+        SDValue LoVal =
+            DAG.getNode(ISD::EXTRACT_ELEMENT, dl, MVT::i32, Op.getOperand(1),
+                        DAG.getConstant(0, dl, MVT::i32));
+        SDValue ST64 =
+            DAG.getNode(RISCVISD::ST64, dl, MVT::Other, Op.getOperand(0), HiVal,
+                        LoVal, Op.getOperand(2));
+        return ST64;
+    }
     if (auto V = expandUnalignedRVVStore(Op, DAG))
       return V;
     if (Op.getOperand(1).getValueType().isFixedLengthVector())
@@ -9730,6 +9769,35 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
     break;
   }
   case ISD::LOAD: {
+
+    if ((N->getValueType(0) == MVT::i64 || N->getValueType(0) == MVT::v2i32) && Subtarget.hasStdExtZilsd()) {
+        SDLoc DL(N);
+        SDValue Op0 = N->getOperand(1);
+        if (Op0.getValueType() != MVT::i32)
+          return;
+
+        // There is no variant of extending load available in the ZILSD extension. */
+        if (cast<LoadSDNode>(N)->getExtensionType() != ISD::NON_EXTLOAD)
+          return;
+
+        // We can't emit ZILSD_LD if the unaligned memory is not allowed and the variable
+        // is not aligned to a value bigger than 8.
+        if (!Subtarget.enableUnalignedScalarMem() && cast<LoadSDNode>(N)->getAlign() < 8)
+          return;
+
+        // Return the 64bit as 32bit tuple. (Lo, Hi)
+        SDVTList VTs = DAG.getVTList(MVT::i32, MVT::i32, MVT::Other);
+        SDValue Load64 = DAG.getNode(RISCVISD::LD64, DL, VTs, N->getOperand(0),
+                                     N->getOperand(1), N->getOperand(2));
+
+        // Results.push_back(Load64);
+        // Results.push_back(Load64.getValue(1));
+        Results.push_back(
+            DAG.getNode(ISD::BUILD_PAIR, DL, MVT::i64, Load64, Load64.getValue(1)));
+        Results.push_back(Load64.getValue(2));
+        return;
+    }
+
     if (!ISD::isNON_EXTLoad(N))
       return;
 
@@ -14416,6 +14484,45 @@ static MachineBasicBlock *emitFROUND(MachineInstr &MI, MachineBasicBlock *MBB,
   return DoneMBB;
 }
 
+static MachineBasicBlock *emit_ZILSD_SD(MachineInstr &MI, MachineBasicBlock *BB) {
+  const TargetInstrInfo *TII = BB->getParent()->getSubtarget().getInstrInfo();
+  DebugLoc DL = MI.getDebugLoc();
+  MachineRegisterInfo &RegInfo = BB->getParent()->getRegInfo();
+
+  if (MI.getOperand(0).getReg() == RISCV::X0_PD &&
+      MI.getOperand(1).getReg() == RISCV::X0_PD)
+    BuildMI(*BB, MI, DL, TII->get(RISCV::ZILSD_SD))
+        .addReg(RISCV::X0_PD)
+        .add(MI.getOperand(2))
+        .add(MI.getOperand(3));
+  else {
+
+    unsigned HiReg = RegInfo.createVirtualRegister(&RISCV::GPRPRegClass);
+    unsigned HiLoReg = RegInfo.createVirtualRegister(&RISCV::GPRPRegClass);
+    unsigned StrReg = RegInfo.createVirtualRegister(&RISCV::GPRPRegClass);
+
+    BuildMI(*BB, MI, DL, TII->get(TargetOpcode::IMPLICIT_DEF), HiReg);
+    BuildMI(*BB, MI, DL, TII->get(TargetOpcode::INSERT_SUBREG), HiLoReg)
+        .addReg(HiReg)
+        .addReg(MI.getOperand(0).getReg())
+        .addImm(RISCV::sub_32_hi);
+
+    BuildMI(*BB, MI, DL, TII->get(TargetOpcode::INSERT_SUBREG), StrReg)
+        .addReg(HiLoReg)
+        .addReg(MI.getOperand(1).getReg())
+        .addImm(RISCV::sub_32);
+
+    BuildMI(*BB, MI, DL, TII->get(RISCV::ZILSD_SD))
+        .addReg(StrReg)
+        .add(MI.getOperand(2))
+        .add(MI.getOperand(3));
+  }
+
+  MI.eraseFromParent();
+
+  return BB;
+}
+
 MachineBasicBlock *
 RISCVTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                                                  MachineBasicBlock *BB) const {
@@ -14535,6 +14642,10 @@ RISCVTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
   case RISCV::PseudoFROUND_D_INX:
   case RISCV::PseudoFROUND_D_IN32X:
     return emitFROUND(MI, BB, Subtarget);
+  case RISCV::PseudoZILSD_SD:
+    assert(Subtarget.hasStdExtZilsd()  &&
+           "Register pair instruction needs zilsd extenion enabled");
+    return emit_ZILSD_SD(MI, BB);
   }
 }
 
@@ -15867,6 +15978,23 @@ SDValue RISCVTargetLowering::LowerCall(CallLoweringInfo &CLI,
   return Chain;
 }
 
+Align llvm::RISCVTargetLowering::getMinLocalVariableAlignment(Type *Ty) const {
+  if (Subtarget.hasStdExtZilsd()) {
+    switch (Ty->getTypeID()) { 
+      // We need to adjust the stack offsets for pointers, arrays and structs 
+      // to be aligned at least at 8. In this manner, more situations can profit 
+      // from the replacement with LD/ST.
+      case Type::PointerTyID:
+      case Type::ArrayTyID:
+      case Type::StructTyID:
+        return Align(8);
+      default:
+        return Align(1);
+    }
+  }
+  return Align(1);
+}
+
 bool RISCVTargetLowering::CanLowerReturn(
     CallingConv::ID CallConv, MachineFunction &MF, bool IsVarArg,
     const SmallVectorImpl<ISD::OutputArg> &Outs, LLVMContext &Context) const {
@@ -16270,6 +16398,9 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(SWAP_CSR)
   NODE_NAME_CASE(CZERO_EQZ)
   NODE_NAME_CASE(CZERO_NEZ)
+  NODE_NAME_CASE(LD64)
+  NODE_NAME_CASE(ST64)
+  NODE_NAME_CASE(BUILD_VECTOR)
   }
   // clang-format on
   return nullptr;

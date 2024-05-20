@@ -5,11 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
 
 //===----------------------------------------------------------------------===//
 //  Declarations that describe the RISC-V register files
 //===----------------------------------------------------------------------===//
-
 let Namespace = "RISCV" in {
 class RISCVReg<bits<5> Enc, string n, list<string> alt = []> : Register<n> {
   let HWEncoding{4-0} = Enc;
@@ -64,6 +66,15 @@ def sub_vrm1_6 : ComposedSubRegIndex<sub_vrm2_3, sub_vrm1_0>;
 def sub_vrm1_7 : ComposedSubRegIndex<sub_vrm2_3, sub_vrm1_1>;
 
 def sub_32_hi  : SubRegIndex<32, 32>;
+
+class RISCVReg32Pair<bits<5> Enc, string n, list<Register> subregs>
+  : RegisterWithSubRegs<n, subregs> {
+  let HWEncoding{4-0} = Enc;
+  let SubRegIndices = [sub_32, sub_32_hi];
+  let AsmName = subregs[0].AsmName;
+  let AltNames = subregs[0].AltNames;
+  let CoveredBySubRegs = 1;
+}
 } // Namespace = "RISCV"
 
 // Integer registers
@@ -562,6 +573,34 @@ let RegAltNameIndices = [ABIRegAltName] in {
       let CoveredBySubRegs = 1;
     }
   }
+}
+
+// Paired Registers
+let RegInfos = RegInfoByHwMode<[RV32], [RegInfo<64, 64, 64>]> in {
+def GPRP : RegisterClass<"RISCV", [i64, v2i32], 64, (
+    add X10_PD, X12_PD, X14_PD, X16_PD,
+    X6_PD,
+    X28_PD, X30_PD,
+    X8_PD,
+    X18_PD, X20_PD, X22_PD, X24_PD, X26_PD,
+    X0_PD, X2_PD, X4_PD
+  	)>;
+
+// Paired Registers (without X0)
+def GPRPNoX0 : RegisterClass<"RISCV", [i64, v2i32], 64, (
+    add X10_PD, X12_PD, X14_PD, X16_PD,
+    X6_PD,
+    X28_PD, X30_PD,
+    X8_PD,
+    X18_PD, X20_PD, X22_PD, X24_PD, X26_PD,
+    X2_PD, X4_PD 
+  	)>;
+
+// Compressed Paired Registers
+def GPRCP : RegisterClass<"RISCV", [i64, v2i32], 64, (
+	add X10_PD, X12_PD, X14_PD, X8_PD
+	)>;
+
 }
 
 let RegInfos = RegInfoByHwMode<[RV64], [RegInfo<64, 64, 64>]> in

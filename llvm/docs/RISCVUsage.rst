@@ -133,6 +133,7 @@ on support follow.
      ``Zks``          Supported
      ``Zkt``          Supported
      ``Zmmul``        Supported
+     ``Zilsd``        Supported
      ``Zve32x``       (`Partially <#riscv-vlen-32-note>`__) Supported
      ``Zve32f``       (`Partially <#riscv-vlen-32-note>`__) Supported
      ``Zve64x``       Supported

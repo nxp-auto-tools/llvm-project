@@ -10,6 +10,9 @@
 // selection DAG.
 //
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
 
 #ifndef LLVM_LIB_TARGET_RISCV_RISCVISELLOWERING_H
 #define LLVM_LIB_TARGET_RISCV_RISCVISELLOWERING_H
@@ -405,6 +408,11 @@ enum NodeType : unsigned {
   STRICT_FSETCC_VL,
   STRICT_FSETCCS_VL,
   STRICT_VFROUND_NOEXCEPT_VL,
+  // Load/Store of 32bit consecutive GPRs.
+  ST64,
+  LD64,
+  // Handle building vector to GPRP expanded from SHUFFLE_VECTOR
+  BUILD_VECTOR,
 
   // WARNING: Do not add anything in the end unless you want the node to
   // have memop! In fact, starting from FIRST_TARGET_MEMORY_OPCODE all
@@ -664,6 +672,8 @@ public:
                       SelectionDAG &DAG) const override;
   SDValue LowerCall(TargetLowering::CallLoweringInfo &CLI,
                     SmallVectorImpl<SDValue> &InVals) const override;
+
+  Align getMinLocalVariableAlignment(Type *Ty) const override;
 
   bool shouldConvertConstantLoadToIntImm(const APInt &Imm,
                                          Type *Ty) const override;

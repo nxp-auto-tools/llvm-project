@@ -10,6 +10,10 @@
 // Machine IR.
 //
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
+
 
 #include "llvm/CodeGen/FunctionLoweringInfo.h"
 #include "llvm/ADT/APInt.h"
@@ -129,6 +133,12 @@ void FunctionLoweringInfo::set(const Function &fn, MachineFunction &mf,
       if (const AllocaInst *AI = dyn_cast<AllocaInst>(&I)) {
         Type *Ty = AI->getAllocatedType();
         Align Alignment = AI->getAlign();
+
+        // If for a specific use case, it is needed a minimum alignment,
+        // create the object with that minimum alignment.
+        Align MinAlignment = TLI->getMinLocalVariableAlignment(Ty);
+        if (MinAlignment > Alignment)
+          Alignment = MinAlignment;
 
         // Static allocas can be folded into the initial stack frame
         // adjustment. For targets that don't realign the stack, don't

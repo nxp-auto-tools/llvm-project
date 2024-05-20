@@ -9,6 +9,9 @@
 // This file contains the RISC-V implementation of the TargetRegisterInfo class.
 //
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
 
 #include "RISCVRegisterInfo.h"
 #include "RISCV.h"
@@ -712,7 +715,7 @@ bool RISCVRegisterInfo::getRegAllocationHints(
     Register Reg = MO.getReg();
     Register PhysReg = Reg.isPhysical() ? Reg : Register(VRM->getPhys(Reg));
     if (PhysReg && (!NeedGPRC || RISCV::GPRCRegClass.contains(PhysReg))) {
-      assert(!MO.getSubReg() && !VRRegMO.getSubReg() && "Unexpected subreg!");
+     // assert(!MO.getSubReg() && !VRRegMO.getSubReg() && "Unexpected subreg!");
       if (!MRI->isReserved(PhysReg) && !is_contained(Hints, PhysReg))
         TwoAddrHints.insert(PhysReg);
     }

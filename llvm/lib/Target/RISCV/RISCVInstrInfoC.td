@@ -5,6 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
 
 include "RISCVInstrFormatsC.td"
 
@@ -364,6 +367,84 @@ def C_LD : CLoad_ri<0b011, "c.ld", GPRC, uimm8_lsb000>,
   let Inst{12-10} = imm{5-3};
   let Inst{6-5} = imm{7-6};
 }
+
+let Predicates = [IsRV32, HasStdExtC, HasStdExtZilsd] in {
+let DecoderNamespace = "Zilsd" in {
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
+def ZILSD_C_LD :RVInst16<(outs GPRCP:$rdc_p), (ins GPRCMem:$rs1c_p, uimm8_lsb000:$immd_cl), "c.ld", "${rdc_p}, ${immd_cl}(${rs1c_p})", [], InstFormatCI>, Sched<[]>{
+	bits<8> immd_cl;
+	bits<3> rs1c_p;
+	bits<3> rdc_p;
+	let Inst{15-13} = 3;
+	let Inst{6-5} = immd_cl{7-6};
+	let Inst{12-10} = immd_cl{5-3};
+	let Inst{9-7} = rs1c_p;
+	let Inst{4-2} = rdc_p;
+	let Inst{1-0} = 0;
+
+}
+}
+
+def : CompressPat<(ZILSD_LD GPRCP:$rd, GPRCMem:$rs1, uimm8_lsb000:$imm),
+                  (ZILSD_C_LD GPRCP:$rd, GPRCMem:$rs1, uimm8_lsb000:$imm)>;
+
+let DecoderNamespace = "Zilsd" in {
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
+def ZILSD_C_LDSP :RVInst16<(outs GPRPNoX0:$rx), (ins SPMem:$sp, uimm9_lsb000:$immd_ci), "c.ldsp", "${rx}, ${immd_ci}(${sp})", [], InstFormatCI>, Sched<[]>{
+	bits<9> immd_ci;
+	bits<5> rx;
+	let Inst{15-13} = 3;
+	let Inst{4-2} = immd_ci{8-6};
+	let Inst{12-12} = immd_ci{5-5};
+	let Inst{6-5} = immd_ci{4-3};
+	let Inst{11-7} = rx;
+	let Inst{1-0} = 2;
+
+}
+}
+
+ def : CompressPat<(ZILSD_LD GPRPNoX0:$rd, SPMem:$rs1, uimm9_lsb000:$imm),
+                   (ZILSD_C_LDSP GPRPNoX0:$rd, SPMem:$rs1, uimm9_lsb000:$imm)>;
+
+
+let DecoderNamespace = "Zilsd" in {
+let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in
+def ZILSD_C_SD :RVInst16<(outs), (ins GPRCP:$rs2c_p, GPRCMem:$rs1c_p, uimm8_lsb000:$immd_cs), "c.sd", "${rs2c_p}, ${immd_cs}(${rs1c_p})", [], InstFormatCS>, Sched<[]>{
+	bits<8> immd_cs;
+	bits<3> rs1c_p;
+	bits<3> rs2c_p;
+	let Inst{15-13} = 7;
+	let Inst{6-5} = immd_cs{7-6};
+	let Inst{12-10} = immd_cs{5-3};
+	let Inst{9-7} = rs1c_p;
+	let Inst{4-2} = rs2c_p;
+	let Inst{1-0} = 0;
+
+}
+}
+
+ def : CompressPat<(ZILSD_SD GPRCP:$rs2, GPRCMem:$rs1, uimm8_lsb000:$imm),
+                   (ZILSD_C_SD GPRCP:$rs2, GPRCMem:$rs1, uimm8_lsb000:$imm)>;
+
+
+let DecoderNamespace = "Zilsd" in {
+let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in
+def ZILSD_C_SDSP :RVInst16<(outs), (ins GPRP:$rs2c, SPMem:$sp, uimm9_lsb000:$immd_css), "c.sdsp", "${rs2c}, ${immd_css}(${sp})", [], InstFormatCS>, Sched<[]>{
+	bits<9> immd_css;
+	bits<5> rs2c;
+	let Inst{15-13} = 7;
+	let Inst{9-7} = immd_css{8-6};
+	let Inst{12-10} = immd_css{5-3};
+	let Inst{6-2} = rs2c;
+	let Inst{1-0} = 2;
+
+}
+}
+
+ def : CompressPat<(ZILSD_SD GPRP:$rs2, SPMem:$rs1, uimm9_lsb000:$imm),
+                   (ZILSD_C_SDSP GPRP:$rs2, SPMem:$rs1, uimm9_lsb000:$imm)>;
+                  
+} // let Predicates = [IsRV32, HasStdExtC]
 
 let Predicates = [HasStdExtCOrZcd, HasStdExtD] in
 def C_FSD  : CStore_rri<0b101, "c.fsd", FPR64C, uimm8_lsb000>,

@@ -18,6 +18,10 @@
 /// immediates.
 ///
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
+
 
 #ifndef LLVM_CODEGEN_TARGETLOWERING_H
 #define LLVM_CODEGEN_TARGETLOWERING_H
@@ -1880,6 +1884,11 @@ public:
   /// Return the minimum stack alignment of an argument.
   Align getMinStackArgumentAlignment() const {
     return MinStackArgumentAlignment;
+  }
+
+  ///  Return the minimum stack alignment of a local variable.
+  virtual Align getMinLocalVariableAlignment(Type* Ty) const {
+    return Align(1);
   }
 
   /// Return the minimum function alignment.
