@@ -1,0 +1,33 @@
+Product:                   ZILSD LLVM build tools
+Version:                   18.1.6
+Outgoing License:          LLVM - Low Level Virtual Machine (Apache License 2.0 with LLVM Exceptions)
+License File:              LICENSE.TXT
+Description and comments:  LLVM ZILSD Support
+Component Class:           Code Generation Tools
+
+Release Location:          https://github.com/nxp-auto-tools/llvm-project/tree/Zilsd/release/18.x
+Origin:                    NXP (LLVM - Low Level Virtual Machine (Apache License 2.0 with LLVM Exceptions))
+                           LLVM (LLVM - Low Level Virtual Machine (Apache License 2.0 with LLVM Exceptions)
+Components: 
+ - 
+   Component: 
+   Name: "CodeGen Tools"
+   Subcomponents: 
+    - 
+   Name: "llvm"
+     Description: "LLVM"
+     Version: "version 18.1.6"
+     License: "LICENSE.TXT"
+     Format: source code
+     URL: "https://github.com/llvm/llvm-project/tree/release/18.x"
+	 Origin:
+		LLVM - Low Level Virtual Machine (Apache License 2.0 with LLVM Exceptions) - https://github.com/llvm/llvm-project/releases/tag/llvmorg-18.1.6
+    - 
+   Name: "Zilsd Support"
+     Description: "Zilsd extension"
+     Version: "version 18.1.6"
+     License: "LICENSE.TXT"
+     Format: source code
+     URL: "https://github.com/nxp-auto-tools/llvm-project/tree/Zilsd/release/18.x"
+	 Origin: NXP
+		

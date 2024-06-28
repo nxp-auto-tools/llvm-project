@@ -9,7 +9,10 @@
 //===----------------------------------------------------------------------===//
 //  Declarations that describe the RISC-V register files
 //===----------------------------------------------------------------------===//
-
+/*
+ * Copyright 2024 NXP
+ */
+ 
 let Namespace = "RISCV" in {
 class RISCVReg<bits<5> Enc, string n, list<string> alt = []> : Register<n> {
   let HWEncoding{4-0} = Enc;
@@ -65,8 +68,18 @@ def sub_vrm1_7 : ComposedSubRegIndex<sub_vrm2_3, sub_vrm1_1>;
 
 // GPR sizes change with HwMode.
 // FIXME: Support HwMode in SubRegIndex?
-def sub_gpr_even : SubRegIndex<-1>;
-def sub_gpr_odd  : SubRegIndex<-1, -1>;
+def sub_gpr_even : SubRegIndex<32>;
+def sub_gpr_odd  : SubRegIndex<32, 32>;
+
+class RISCVReg32Pair<bits<5> Enc, string n, list<Register> subregs>
+  : RegisterWithSubRegs<n, subregs> {
+  let HWEncoding{4-0} = Enc;
+  let SubRegIndices = [sub_gpr_even, sub_gpr_odd];
+  let AsmName = subregs[0].AsmName;
+  let AltNames = subregs[0].AltNames;
+  let CoveredBySubRegs = 1;
+}
+
 } // Namespace = "RISCV"
 
 // Integer registers
@@ -551,7 +564,7 @@ def DUMMY_REG_PAIR_WITH_X0 : RISCVReg<0, "0">;
 def GPRAll : GPRRegisterClass<(add GPR, DUMMY_REG_PAIR_WITH_X0)>;
 
 let RegAltNameIndices = [ABIRegAltName] in {
-  def X0_Pair : RISCVRegWithSubRegs<0, X0.AsmName,
+  def X0_X0 : RISCVRegWithSubRegs<0, X0.AsmName,
                                     [X0, DUMMY_REG_PAIR_WITH_X0],
                                     X0.AltNames> {
     let SubRegIndices = [sub_gpr_even, sub_gpr_odd];
@@ -581,8 +594,38 @@ def GPRPair : RegisterClass<"RISCV", [XLenPairFVT], 64, (add
     X28_X29, X30_X31,
     X8_X9,
     X18_X19, X20_X21, X22_X23, X24_X25, X26_X27,
-    X0_Pair, X2_X3, X4_X5
+    X0_X0, X2_X3, X4_X5
 )>;
+
+// Paired Registers
+let RegInfos = RegInfoByHwMode<[RV32], [RegInfo<64, 64, 64>]>,
+    DecoderMethod = "DecodeGPRPRegisterClass" in
+def GPRP : RegisterClass<"RISCV", [i64, v2i32], 64, (
+    add X10_X11, X12_X13, X14_X15, X16_X17,
+    X6_X7,
+    X28_X29, X30_X31,
+    X8_X9,
+    X18_X19, X20_X21, X22_X23, X24_X25, X26_X27,
+    X0_X0, X2_X3, X4_X5
+)>;
+
+// Paired Registers (without X0)
+let RegInfos = RegInfoByHwMode<[RV32], [RegInfo<64, 64, 64>]> in
+def GPRPNoX0 : RegisterClass<"RISCV", [i64, v2i32], 64, (
+    add X10_X11, X12_X13, X14_X15, X16_X17,
+    X6_X7,
+    X28_X29, X30_X31,
+    X8_X9,
+    X18_X19, X20_X21, X22_X23, X24_X25, X26_X27,
+    X2_X3, X4_X5 
+)>;
+
+// Compressed Paired Registers
+let RegInfos = RegInfoByHwMode<[RV32], [RegInfo<64, 64, 64>]> in
+def GPRCP : RegisterClass<"RISCV", [i64, v2i32], 64, (
+	add X10_X11, X12_X13, X14_X15, X8_X9
+)>;
+
 
 // The register class is added for inline assembly for vector mask types.
 def VM : VReg<VMaskVTs,

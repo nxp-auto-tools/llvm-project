@@ -9,7 +9,10 @@
 // This file describes the RISC-V instructions in TableGen format.
 //
 //===----------------------------------------------------------------------===//
-
+/*
+ * Copyright 2024 NXP
+ */
+ 
 //===----------------------------------------------------------------------===//
 // RISC-V specific DAG Nodes.
 //===----------------------------------------------------------------------===//
@@ -769,6 +772,40 @@ def SRAW  : ALUW_rr<0b0100000, 0b101, "sraw">,
             Sched<[WriteShiftReg32, ReadShiftReg32, ReadShiftReg32]>;
 } // IsSignExtendingOpW = 1
 } // Predicates = [IsRV64]
+
+let Predicates = [IsRV32, HasStdExtZilsd] in {
+let DecoderNamespace = "Zilsd" in {
+let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
+def ZILSD_LD :RVInst<(outs GPRP:$rd), (ins GPRMem:$rs1, simm12:$imm_i), "ld", "${rd}, ${imm_i}(${rs1})", [], InstFormatI>, Sched<[]>{
+	bits<12> imm_i;
+	bits<5> rs1;
+	bits<5> rd;
+	let Inst{31-20} = imm_i{11-0};
+	let Inst{19-15} = rs1;
+	let Inst{14-12} = 3;
+	let Inst{11-7} = rd;
+	let Inst{6-0} = 3;
+
+}
+}
+let DecoderNamespace = "Zilsd" in {
+let hasSideEffects = 0, mayLoad = 0, mayStore = 1 in 
+def ZILSD_SD :RVInst<(outs), (ins GPRP:$rs2, GPRMem:$rs1, simm12:$imm_s), "sd", "${rs2}, ${imm_s}(${rs1})", [], InstFormatS>, Sched<[]>{
+	bits<12> imm_s;
+	bits<5> rs2;
+	bits<5> rs1;
+	let Inst{31-25} = imm_s{11-5};
+	let Inst{11-7} = imm_s{4-0};
+	let Inst{24-20} = rs2;
+	let Inst{19-15} = rs1;
+	let Inst{14-12} = 3;
+	let Inst{6-0} = 35;
+
+}
+}
+let hasSideEffects = 0, mayLoad = 0, mayStore = 0, hasNoSchedulingInfo = 1, usesCustomInserter = 1 in
+def PseudoZILSD_SD : Pseudo<(outs), (ins GPR:$hi, GPR:$lo, GPR:$rs1, simm12:$imm12), [], "", "">;
+}
 
 //===----------------------------------------------------------------------===//
 // Privileged instructions
@@ -1815,6 +1852,23 @@ class StPat<PatFrag StoreOp, RVInst Inst, RegisterClass StTy,
 def : StPat<truncstorei8, SB, GPR, XLenVT>;
 def : StPat<truncstorei16, SH, GPR, XLenVT>;
 def : StPat<store, SW, GPR, i32>;
+
+def loadv2i32 : PatFrag<(ops node:$ptr), (v2i32 (load node:$ptr))>;
+
+let Predicates = [IsRV32, HasStdExtZilsd] in {
+def : Pat<(store (v2i32 GPRP:$rs2), GPRMem:$rs1), (ZILSD_SD GPRP:$rs2, GPRMem:$rs1, 0)>;
+def : Pat<(store (v2i32 GPRP:$rs2), (add GPR:$rs1, simm12:$imm12)),
+         (ZILSD_SD GPRP:$rs2, GPR:$rs1, simm12:$imm12)>;
+
+def : Pat<(loadv2i32 GPR:$rs1),(ZILSD_LD GPR:$rs1, 0)>;
+def : Pat<(loadv2i32 (add GPR:$rs1, simm12:$imm12)),(ZILSD_LD GPR:$rs1, simm12:$imm12)>;
+
+def : Pat<(i32 (extractelt (v2i32 GPRP:$v), (i32 0))), (EXTRACT_SUBREG GPRP:$v, sub_gpr_even)>;
+def : Pat<(i32 (extractelt (v2i32 GPRP:$v), (i32 1))), (EXTRACT_SUBREG GPRP:$v, sub_gpr_odd)>;
+def : Pat<(v2i32 (insertelt (v2i32 GPRP:$v), (i32 GPR:$e), (i32 0))), (INSERT_SUBREG GPRP:$v, GPR:$e, sub_gpr_even)>;
+def : Pat<(v2i32 (insertelt (v2i32 GPRP:$v), (i32 GPR:$e), (i32 1))), (INSERT_SUBREG GPRP:$v, GPR:$e, sub_gpr_odd)>;
+def : Pat<(v2i32 (scalar_to_vector (i32 GPR:$Rn))), (INSERT_SUBREG (v2i32 (IMPLICIT_DEF)), GPR:$Rn, sub_gpr_even)>;
+}
 
 /// Fences
 

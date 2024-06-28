@@ -9,7 +9,10 @@
 // This file contains the RISC-V implementation of the TargetInstrInfo class.
 //
 //===----------------------------------------------------------------------===//
-
+/*
+ * Copyright 2024 NXP
+ */
+ 
 #include "RISCVInstrInfo.h"
 #include "MCTargetDesc/RISCVMatInt.h"
 #include "RISCV.h"
@@ -604,7 +607,12 @@ void RISCVInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
 
   unsigned Opcode;
   bool IsScalableVector = true;
-  if (RISCV::GPRRegClass.hasSubClassEq(RC)) {
+  if (STI.hasFeature(RISCV::FeatureStdExtZilsd) &&
+      !STI.hasFeature(RISCV::FeatureStdExtZcmp) &&
+          RISCV::GPRPRegClass.hasSubClassEq(RC)) {
+    Opcode = RISCV::ZILSD_SD;
+    IsScalableVector = false;
+  } else if (RISCV::GPRRegClass.hasSubClassEq(RC)) {
     Opcode = TRI->getRegSizeInBits(RISCV::GPRRegClass) == 32 ?
              RISCV::SW : RISCV::SD;
     IsScalableVector = false;
@@ -687,7 +695,12 @@ void RISCVInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
 
   unsigned Opcode;
   bool IsScalableVector = true;
-  if (RISCV::GPRRegClass.hasSubClassEq(RC)) {
+  if (STI.hasFeature(RISCV::FeatureStdExtZilsd) &&
+      !STI.hasFeature(RISCV::FeatureStdExtZcmp) &&
+          RISCV::GPRPRegClass.hasSubClassEq(RC)) {
+    Opcode = RISCV::ZILSD_LD;
+    IsScalableVector = false;
+  } else if (RISCV::GPRRegClass.hasSubClassEq(RC)) {
     Opcode = TRI->getRegSizeInBits(RISCV::GPRRegClass) == 32 ?
              RISCV::LW : RISCV::LD;
     IsScalableVector = false;

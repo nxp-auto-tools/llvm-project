@@ -9,7 +9,10 @@
 // This file contains the RISC-V implementation of TargetFrameLowering class.
 //
 //===----------------------------------------------------------------------===//
-
+/*
+ * Copyright 2024 NXP
+ */
+ 
 #include "RISCVFrameLowering.h"
 #include "RISCVMachineFunctionInfo.h"
 #include "RISCVSubtarget.h"
@@ -594,12 +597,27 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
     } else {
       Offset = MFI.getObjectOffset(FrameIdx) - RVFI->getReservedSpillsSize();
     }
+	
+	SmallVector<Register, 2> Registers;
     Register Reg = Entry.getReg();
-    unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createOffset(
-        nullptr, RI->getDwarfRegNum(Reg, true), Offset));
-    BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
-        .addCFIIndex(CFIIndex)
-        .setMIFlag(MachineInstr::FrameSetup);
+	
+    if (STI.hasFeature(RISCV::FeatureStdExtZilsd) &&
+        !STI.hasFeature(RISCV::FeatureStdExtZcmp) &&
+        RISCV::GPRPRegClass.contains(Reg)) {
+      Registers.push_back(STI.getRegisterInfo()->getSubReg(Reg, RISCV::sub_gpr_even));
+      Registers.push_back(
+          STI.getRegisterInfo()->getSubReg(Reg, RISCV::sub_gpr_odd));
+    } else
+      Registers.push_back(Reg);
+
+    for (auto &Reg : Registers) {
+      unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createOffset(
+          nullptr, RI->getDwarfRegNum(Reg, true), Offset));
+      BuildMI(MBB, MBBI, DL, TII->get(TargetOpcode::CFI_INSTRUCTION))
+          .addCFIIndex(CFIIndex)
+          .setMIFlag(MachineInstr::FrameSetup);
+      Offset += 4;
+    }
   }
 
   // Generate new FP.
@@ -971,6 +989,99 @@ RISCVFrameLowering::getFrameIndexReference(const MachineFunction &MF, int FI,
     Offset += StackOffset::get(ScalarLocalVarSize, RVFI->getRVVStackSize());
   }
   return Offset;
+}
+
+// Check if the given register is part of CSI.
+static bool isRegInCSR(Register Reg, std::vector<CalleeSavedInfo> CSI,
+                       CalleeSavedInfo &CSReg) {
+  for (auto &CS : CSI) {
+    if (CS.getReg() == Reg) {
+      CSReg = CS;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool RISCVFrameLowering::assignCalleeSavedSpillSlots(
+    MachineFunction &MF, const TargetRegisterInfo *TRI,
+    std::vector<CalleeSavedInfo> &CSI, unsigned &MinCSFrameIndex,
+    unsigned &MaxCSFrameIndex) const {
+
+  if (CSI.empty())
+    return false;
+
+  MF.getFrameInfo().setCalleeSavedInfo(CSI);
+
+  // For the zilsd extension, we need to replace all the consecutive callee-saved registers
+  // with their correspondent superregister (if it exists).
+  if (STI.hasFeature(RISCV::FeatureStdExtZilsd) &&
+      !STI.hasFeature(RISCV::FeatureStdExtZcmp) &&
+      !MF.getFunction().hasOptNone()) { 
+
+    std::vector<CalleeSavedInfo> CSIPair;
+    MachineFrameInfo &MFI = MF.getFrameInfo();
+
+    DenseMap<Register, bool> PairCalleeSavedRegs = {
+        std::make_pair(RISCV::X8_X9, false),
+        std::make_pair(RISCV::X18_X19, false),
+        std::make_pair(RISCV::X20_X21, false),
+        std::make_pair(RISCV::X24_X25, false),
+        std::make_pair(RISCV::X26_X27, false)};
+
+    for (auto &CS : CSI) {
+    
+      Register Reg = CS.getReg();
+
+      Register SuperRegLo =
+          TRI->getMatchingSuperReg(Reg, RISCV::sub_gpr_even, &RISCV::GPRPRegClass);
+      Register SuperRegHi =
+          TRI->getMatchingSuperReg(Reg, RISCV::sub_gpr_odd, &RISCV::GPRPRegClass);
+
+      // If there is no matching superregister, add the register to the final list.
+      if (!SuperRegLo && !SuperRegHi) {
+        CSIPair.push_back(CS);
+        continue;
+      }
+
+      Register SuperReg = SuperRegLo ? SuperRegLo : SuperRegHi;
+
+      // If the pair correspondent to the superregister was already added in the final list,
+      // don't add it twice.
+      if (PairCalleeSavedRegs[SuperReg])
+        continue;
+
+      Register PairedSubReg = SuperRegLo
+                                  ? TRI->getSubReg(SuperRegLo, RISCV::sub_gpr_odd)
+                                  : TRI->getSubReg(SuperRegHi, RISCV::sub_gpr_even);
+
+      bool FoundSubReg = false;
+
+      // Search for the other half of the superregister among the callee-saved registers.
+      for (auto &PossibleSubReg : CSI)
+        if (PossibleSubReg.getReg() == PairedSubReg) {
+          FoundSubReg = true;
+          break;
+        }
+      
+      if (!FoundSubReg) {
+        // If the other half is not found, the register will be saved as a
+        // simple one.
+        CSIPair.push_back(CS);
+      } else {
+        // Otherwise, add in the final list the correspondent superregister.
+        CalleeSavedInfo CS2(SuperReg, CS.getFrameIdx());
+        CSIPair.push_back(CS2);
+        PairCalleeSavedRegs[SuperReg] = true;
+      }
+    }
+  
+    CSI = CSIPair;
+    MF.getFrameInfo().setCalleeSavedInfo(CSIPair);
+
+  }
+  return false;
 }
 
 void RISCVFrameLowering::determineCalleeSaves(MachineFunction &MF,
@@ -1420,7 +1531,16 @@ bool RISCVFrameLowering::spillCalleeSavedRegisters(
     // Insert the spill to the stack frame.
     Register Reg = CS.getReg();
     const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-    TII.storeRegToStackSlot(MBB, MI, Reg, !MBB.isLiveIn(Reg), CS.getFrameIdx(),
+	
+    // For the zilsd extension, we don't want to use the minimal physical class.
+    // We can use the paired registers.
+    if (STI.hasFeature(RISCV::FeatureStdExtZilsd) &&
+        !STI.hasFeature(RISCV::FeatureStdExtZcmp) &&
+        RISCV::GPRPRegClass.contains(Reg)) 
+     TII.storeRegToStackSlot(MBB, MI, Reg, true, CS.getFrameIdx(),
+                              &RISCV::GPRPRegClass, TRI, Register());
+    else
+     TII.storeRegToStackSlot(MBB, MI, Reg, !MBB.isLiveIn(Reg), CS.getFrameIdx(),
                             RC, TRI, Register());
   }
 
@@ -1449,9 +1569,18 @@ bool RISCVFrameLowering::restoreCalleeSavedRegisters(
   for (auto &CS : UnmanagedCSI) {
     Register Reg = CS.getReg();
     const TargetRegisterClass *RC = TRI->getMinimalPhysRegClass(Reg);
-    TII.loadRegFromStackSlot(MBB, MI, Reg, CS.getFrameIdx(), RC, TRI,
-                             Register());
-    assert(MI != MBB.begin() && "loadRegFromStackSlot didn't insert any code!");
+	
+    // For the zilsd extension, we don't want to use the minimal physical class.
+    // We can use the paired registers.
+    if (STI.hasFeature(RISCV::FeatureStdExtZilsd) &&
+        !STI.hasFeature(RISCV::FeatureStdExtZcmp) &&
+        RISCV::GPRPRegClass.contains(Reg))
+      TII.loadRegFromStackSlot(MBB, MI, Reg, CS.getFrameIdx(),
+                               &RISCV::GPRPRegClass, TRI,
+                               Register());
+    else
+      TII.loadRegFromStackSlot(MBB, MI, Reg, CS.getFrameIdx(), RC, TRI,
+                               Register());
   }
 
   RISCVMachineFunctionInfo *RVFI = MF->getInfo<RISCVMachineFunctionInfo>();

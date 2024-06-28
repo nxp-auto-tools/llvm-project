@@ -9,7 +9,10 @@
 // Implements the info about RISC-V target spec.
 //
 //===----------------------------------------------------------------------===//
-
+/*
+ * Copyright 2024 NXP
+ */
+ 
 #include "RISCVTargetMachine.h"
 #include "MCTargetDesc/RISCVBaseInfo.h"
 #include "RISCV.h"
@@ -548,6 +551,8 @@ void RISCVPassConfig::addPreEmitPass2() {
   addPass(createUnpackMachineBundles([&](const MachineFunction &MF) {
     return MF.getFunction().getParent()->getModuleFlag("kcfi");
   }));
+
+   addPass(createRISCVMIPeephole2Pass());
 }
 
 void RISCVPassConfig::addMachineSSAOptimization() {
@@ -573,6 +578,7 @@ void RISCVPassConfig::addPreRegAlloc() {
     addPass(createRISCVDeadRegisterDefinitionsPass());
   addPass(createRISCVInsertReadWriteCSRPass());
   addPass(createRISCVInsertWriteVXRMPass());
+  addPass(createRISCVMIPeepholePass());
 }
 
 void RISCVPassConfig::addOptimizedRegAlloc() {

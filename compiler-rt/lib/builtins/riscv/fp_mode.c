@@ -17,7 +17,7 @@
 CRT_FE_ROUND_MODE __fe_getround(void) {
 #if defined(__riscv_f) || defined(__riscv_zfinx)
   int frm;
-  __asm__ __volatile__("frrm %0" : "=r" (frm));
+  __asm__ __volatile__("csrr %0, frm" : "=r" (frm));
   switch (frm) {
     case RISCV_TOWARDZERO:
       return CRT_FE_TOWARDZERO;

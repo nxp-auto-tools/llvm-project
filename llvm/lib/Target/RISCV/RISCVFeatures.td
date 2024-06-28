@@ -9,9 +9,26 @@
 //===----------------------------------------------------------------------===//
 // RISC-V subtarget features and instruction predicates.
 //===----------------------------------------------------------------------===//
+/*
+ * Copyright 2024 NXP
+ */
 
 // Integer Extensions
 
+def FeatureStdExtZcmlsd
+    : SubtargetFeature<"experimental-zcmlsd", "HasStdExtZcmlsd", "true",
+                       "'zcmlsd' (Zcmlsd Extension Test)">;
+def HasStdExtZcmlsd : Predicate<"Subtarget->hasStdExtZcmlsd()">,
+                           AssemblerPredicate<(all_of FeatureStdExtZcmlsd),
+                           "'Zcmlsd' (Zcmlsd Extension Test)">;
+
+def FeatureStdExtZilsd
+    : SubtargetFeature<"experimental-zilsd", "HasStdExtZilsd", "true",
+                       "'zilsd' (Zilsd Extension Test)">;
+def HasStdExtZilsd : Predicate<"Subtarget->hasStdExtZilsd()">,
+                           AssemblerPredicate<(all_of FeatureStdExtZilsd),
+                           "'Zilsd' (Zilsd Extension Test)">;
+						   
 def FeatureStdExtI
     : SubtargetFeature<"i", "HasStdExtI", "true",
                        "'I' (Base Integer Instruction Set)">;
