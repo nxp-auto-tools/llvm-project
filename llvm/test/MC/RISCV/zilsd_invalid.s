@@ -1,7 +1,7 @@
 #
 # Copyright 2024 NXP
 #
-# RUN: not llvm-mc -triple=riscv32 --mattr=+c,+zilsd,+zcmlsd %s 2>&1 | FileCheck %s
+# RUN: not llvm-mc -triple=riscv32 --mattr=+c,+experimental-zilsd,+experimental-zcmlsd %s 2>&1 | FileCheck %s
 
 ld x9, 0(x10)       # CHECK: [[@LINE]]:1: error: instruction requires the following: RV64I Base Instruction Set
 ld x8, -2049(x10)   # CHECK: [[@LINE]]:8: error: operand must be a symbol with %lo/%pcrel_lo/%tprel_lo modifier or an integer in the range [-2048, 2047]

@@ -256,8 +256,10 @@ static Register analyzeCompressibleUses(MachineInstr &FirstMI,
   // are required for a code size reduction. If no base adjustment is required,
   // then copying the register costs one new c.mv (or c.li Rd, 0 for "copying"
   // the zero register) and therefore two uses are required for a code size
-  // reduction.
-  if (MIs.size() < 2 || (RegImm.Imm != 0 && MIs.size() < 3))
+  // reduction (or two new copies for the paired registers, so four uses are required).
+  if ((RISCV::GPRPRegClass.contains(RegImm.Reg) && MIs.size() < 4) ||
+      (!RISCV::GPRPRegClass.contains(RegImm.Reg) && MIs.size() < 2) ||
+      (RegImm.Imm != 0 && MIs.size() < 3))
     return RISCV::NoRegister;
 
   // Find a compressible register which will be available from the first
@@ -328,9 +330,10 @@ bool RISCVMakeCompressibleOpt::runOnMachineFunction(MachineFunction &Fn) {
   // This is a size optimization.
   if (skipFunction(Fn.getFunction()) || !Fn.getFunction().hasMinSize())
     return false;
-
+  
   const RISCVSubtarget &STI = Fn.getSubtarget<RISCVSubtarget>();
   const RISCVInstrInfo &TII = *STI.getInstrInfo();
+  const RISCVRegisterInfo &TRI = *STI.getRegisterInfo();
 
   // This optimization only makes sense if compressed instructions are emitted.
   // FIXME: Support Zca, Zcf, Zcd granularity.
@@ -366,12 +369,24 @@ bool RISCVMakeCompressibleOpt::runOnMachineFunction(MachineFunction &Fn) {
         // are loads and stores, for which the offset applies to the GPR operand
         // not the FPR operand.
         assert(RegImm.Imm == 0);
-        unsigned Opcode = RISCV::FPR32RegClass.contains(RegImm.Reg)
-                              ? RISCV::FSGNJ_S
-                              : RISCV::FSGNJ_D;
-        BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(Opcode), NewReg)
-            .addReg(RegImm.Reg)
-            .addReg(RegImm.Reg);
+
+        if (RISCV::GPRPRegClass.contains(RegImm.Reg)) {
+          BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(RISCV::ADDI),
+                  TRI.getSubReg(NewReg, RISCV::sub_gpr_even))
+              .addReg(TRI.getSubReg(RegImm.Reg, RISCV::sub_gpr_even))
+              .addImm(0);
+          BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(RISCV::ADDI),
+                  TRI.getSubReg(NewReg, RISCV::sub_gpr_odd))
+              .addReg(TRI.getSubReg(RegImm.Reg, RISCV::sub_gpr_odd))
+              .addImm(0);
+        } else {
+          unsigned Opcode = RISCV::FPR32RegClass.contains(RegImm.Reg)
+                                ? RISCV::FSGNJ_S
+                                : RISCV::FSGNJ_D;
+          BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(Opcode), NewReg)
+              .addReg(RegImm.Reg)
+              .addReg(RegImm.Reg);
+        }
       }
 
       // Update the set of instructions to use the compressed register and

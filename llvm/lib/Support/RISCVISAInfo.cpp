@@ -197,7 +197,7 @@ static const RISCVSupportedExtension SupportedExtensions[] = {
 static const RISCVSupportedExtension SupportedExperimentalExtensions[] = {
     {"zacas", {1, 0}},
 
-    {"zcmlsd", {0, 1}},
+    {"zcmlsd", {0, 9}},
 
     {"zcmop", {0, 2}},
 
@@ -206,7 +206,7 @@ static const RISCVSupportedExtension SupportedExperimentalExtensions[] = {
     {"zicfilp", {0, 4}},
     {"zicfiss", {0, 4}},
 
-    {"zilsd", {0, 1}},
+    {"zilsd", {0, 9}},
 
     {"zimop", {0, 1}},
 

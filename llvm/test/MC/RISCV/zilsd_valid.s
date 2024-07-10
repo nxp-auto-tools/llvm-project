@@ -1,10 +1,10 @@
 #
 # Copyright 2024 NXP
 #
-# RUN: llvm-mc %s -triple=riscv32 --mattr=+c,+zilsd,+zcmlsd -riscv-no-aliases -show-encoding \
+# RUN: llvm-mc %s -triple=riscv32 --mattr=+c,+experimental-zilsd,+experimental-zcmlsd -riscv-no-aliases -show-encoding \
 # RUN:     | FileCheck -check-prefixes=CHECK-ASM,CHECK-ASM-AND-OBJ %s
-# RUN: llvm-mc -filetype=obj -triple=riscv32 -mattr=+c,+zilsd,+zcmlsd < %s \
-# RUN:     | llvm-objdump --mattr=+zilsd,+zcmlsd -M no-aliases --no-print-imm-hex -d -r - \
+# RUN: llvm-mc -filetype=obj -triple=riscv32 -mattr=+c,+experimental-zilsd,+experimental-zcmlsd < %s \
+# RUN:     | llvm-objdump --mattr=+experimental-zilsd,+experimental-zcmlsd -M no-aliases --no-print-imm-hex -d -r - \
 # RUN:     | FileCheck --check-prefix=CHECK-ASM-AND-OBJ %s
 
 # CHECK-ASM-AND-OBJ: ld s0, 0(a0)

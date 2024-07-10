@@ -23,3 +23,7 @@ fnmsub.s x18, x19, x20, x21, 0b111 # CHECK: :[[@LINE]]:30: error: operand must b
 
 # Using 'Zdinx' instructions for an 'Zfinx'-only target
 fadd.d t0, t1, t2 # CHECK: :[[@LINE]]:1: error: instruction requires the following: 'Zdinx' (Double in Integer){{$}}
+
+
+#Using a rounding mode instruction from one of the compiler-rt sources
+frrm a0 # CHECK: :[[@LINE]]:1: error: instruction requires the following: 'F' (Single-Precision Floating-Point)
