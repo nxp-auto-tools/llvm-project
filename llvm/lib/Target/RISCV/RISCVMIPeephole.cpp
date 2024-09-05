@@ -149,17 +149,23 @@ bool RISCVMIPeephole::CombineLDSTtoPair(MachineBasicBlock::iterator &MBBI) {
     // should be accessed such that lower numbered register is at a lower
     // address and four bytes away from the higher subreg. We already know the
     // low subreg. Check for the address also.
+    // In addition, the offset of the higher part needs to be zero to avoid combining
+    // in situations like this one:
+    // e.g. SW %0:gpr, %stack.0.x, 0 :: (store (s32) into %ir.x)
+    //      SW %2:gpr, %stack.1.y, 80 :: (store (s32) into %ir.y)
     int OffsetNext =
         IsImm ? NextI->getOperand(2).getImm() : NextI->getOperand(2).getOffset();
     if ((!LocalVariables && ((OffsetMI + 4) == OffsetNext)) ||
-        (LocalVariables && (NextI->getOperand(1).getIndex() + 1) == Base)) {
+        (LocalVariables && (NextI->getOperand(1).getIndex() + 1) == Base) &&
+         OffsetNext == 0) {
       LoInst = &MI;
       HiInst = &*NextI;
       OffsetLo = OffsetMI;
       OffsetHi = OffsetNext;
       break;
     } else if ((!LocalVariables && ((OffsetNext + 4) == OffsetMI)) ||
-               (LocalVariables && (Base + 1) == NextI->getOperand(1).getIndex())) {
+               (LocalVariables && (Base + 1) == NextI->getOperand(1).getIndex()) &&
+                OffsetMI == 0) {
       LoInst = &*NextI;
       HiInst = &MI;
       OffsetLo = OffsetNext;
@@ -213,7 +219,7 @@ bool RISCVMIPeephole::CombineLDSTtoPair(MachineBasicBlock::iterator &MBBI) {
     if (LocalVariables && LoInst->memoperands()[0]->getValue()) 
       if (const AllocaInst *AI =
               dyn_cast<AllocaInst>(LoInst->memoperands()[0]->getValue()))
-        if (AI->getAllocationSize(LoInst->getParent()->getParent()->getDataLayout()))
+        if (AI->getAllocationSize(LoInst->getParent()->getParent()->getDataLayout()) > 4)
             return false;
       
     LLVM_DEBUG(

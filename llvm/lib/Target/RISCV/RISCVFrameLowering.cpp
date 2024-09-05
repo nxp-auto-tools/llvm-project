@@ -1024,7 +1024,6 @@ bool RISCVFrameLowering::assignCalleeSavedSpillSlots(
     MachineFrameInfo &MFI = MF.getFrameInfo();
 
     DenseMap<Register, bool> PairCalleeSavedRegs = {
-        std::make_pair(RISCV::X8_X9, false),
         std::make_pair(RISCV::X18_X19, false),
         std::make_pair(RISCV::X20_X21, false),
         std::make_pair(RISCV::X24_X25, false),
@@ -1033,6 +1032,19 @@ bool RISCVFrameLowering::assignCalleeSavedSpillSlots(
     for (auto &CS : CSI) {
     
       Register Reg = CS.getReg();
+
+      // If we save X8(s0) in pair, the calling convention is no longer respected
+      // in all the use-cases.
+      // e.g. addi	sp, sp, -144
+      //      sw ra, 140(sp)
+      //      sd s0, 16(sp)
+      //      addi s0, sp, 144 
+
+
+      if (Reg == RISCV::X8 || Reg == RISCV::X9) {
+        CSIPair.push_back(CS);
+        continue;
+      }
 
       Register SuperRegLo =
           TRI->getMatchingSuperReg(Reg, RISCV::sub_gpr_even, &RISCV::GPRPRegClass);
