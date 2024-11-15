@@ -352,7 +352,7 @@ def C_LD : CLoad_ri<0b011, "c.ld", GPRC, uimm8_lsb000>,
   let Inst{6-5} = imm{7-6};
 }
 
-let Predicates = [IsRV32, HasStdExtCOrZca, HasStdExtZilsd, HasStdExtZcmlsd] in {
+let Predicates = [IsRV32, HasStdExtCOrZca, HasStdExtZilsd, HasStdExtZclsd] in {
 let DecoderNamespace = "Zilsd" in {
 let hasSideEffects = 0, mayLoad = 1, mayStore = 0 in
 def ZILSD_C_LD :RVInst16<(outs GPRCP:$rdc_p), (ins GPRCMem:$rs1c_p, uimm8_lsb000:$immd_cl), "c.ld", "${rdc_p}, ${immd_cl}(${rs1c_p})", [], InstFormatCI>, Sched<[]>{
@@ -428,7 +428,7 @@ def ZILSD_C_SDSP :RVInst16<(outs), (ins GPRP:$rs2c, SPMem:$sp, uimm9_lsb000:$imm
  def : CompressPat<(ZILSD_SD GPRP:$rs2, SPMem:$rs1, uimm9_lsb000:$imm),
                    (ZILSD_C_SDSP GPRP:$rs2, SPMem:$rs1, uimm9_lsb000:$imm)>;
                   
-} // let Predicates = [IsRV32, HasStdExtZca, HasStdExtZilsd, HasStdExtZcmlsd]
+} // let Predicates = [IsRV32, HasStdExtZca, HasStdExtZilsd, HasStdExtZclsd]
 
 let Predicates = [HasStdExtCOrZcd, HasStdExtD] in
 def C_FSD  : CStore_rri<0b101, "c.fsd", FPR64C, uimm8_lsb000>,

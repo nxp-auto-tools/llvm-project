@@ -15,12 +15,12 @@
 
 // Integer Extensions
 
-def FeatureStdExtZcmlsd
-    : SubtargetFeature<"experimental-zcmlsd", "HasStdExtZcmlsd", "true",
-                       "'zcmlsd' (Zcmlsd Extension Test)">;
-def HasStdExtZcmlsd : Predicate<"Subtarget->hasStdExtZcmlsd()">,
-                           AssemblerPredicate<(all_of FeatureStdExtZcmlsd),
-                           "'Zcmlsd' (Zcmlsd Extension Test)">;
+def FeatureStdExtZclsd
+    : SubtargetFeature<"experimental-zclsd", "HasStdExtZclsd", "true",
+                       "'zclsd' (Zclsd Extension Test)">;
+def HasStdExtZclsd : Predicate<"Subtarget->hasStdExtZclsd()">,
+                           AssemblerPredicate<(all_of FeatureStdExtZclsd),
+                           "'Zclsd' (Zclsd Extension Test)">;
 
 def FeatureStdExtZilsd
     : SubtargetFeature<"experimental-zilsd", "HasStdExtZilsd", "true",

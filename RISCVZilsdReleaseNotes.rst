@@ -2,6 +2,13 @@
 RISCV LLVM Release Notes
 ========================
 
+RISCV LLVM Release 12-November-2024
+===================================
+Update based on clang 18.1.6
+
+**Compiler**
+	- Changed zcmlsd extension to zclsd and updated version to 0.10.
+	
 RISCV LLVM Release 01-July-2024
 ===================================
 Build based on clang 18.1.6
